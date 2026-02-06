@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MICROBOX: Studio Edition</title>
+    <style>
+        :root {
+            --bg-color: #050505; 
+            --main-color: #777;
+            --dim-color: #2a2a2a;
+            --accent-color: #2e9afe;
+            --play-color: #aaa;
+            --btn-gray: #555;
+            --font-stack: 'Courier New', 'Courier', monospace;
+            --logo-font: 'Impact', 'Arial Black', sans-serif;
+        }
+
+        * { box-sizing: border-box; user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-color); color: var(--main-color);
+            font-family: var(--font-stack); height: 100vh;
+            display: flex; flex-direction: column; overflow: hidden; font-size: 12px;
+            touch-action: none;
+        }
+
+        @keyframes breathe {
+            0% { text-shadow: 0 0 2px var(--accent-color); opacity: 0.8; }
+            50% { text-shadow: 0 0 10px var(--accent-color), 0 0 20px var(--accent-color); opacity: 1; color: #fff; }
+            100% { text-shadow: 0 0 2px var(--accent-color); opacity: 0.8; }
+        }
+
+        #overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color); z-index: 2000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+        }
+        #start-btn-big {
+            font-size: 14px; padding: 10px 20px;
+            border: 1px solid var(--accent-color); background: transparent;
+            color: var(--accent-color); font-family: var(--font-stack);
+            cursor: pointer; text-transform: uppercase;
+        }
+
+        /* --- 编辑器布局 --- */
+        #editor-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 5, 0.95); z-index: 1500;
+            display: none; flex-direction: column; padding: 20px;
+            backdrop-filter: blur(8px);
+        }
+        #editor-overlay.active { display: flex; }
+        
+        .editor-container {
+            width: 100%; max-width: 950px; height: 100%; margin: 0 auto;
+            border: 1px solid var(--main-color); background: #000;
+            display: flex; flex-direction: column;
+        }
+
+        .editor-top-bar { padding: 8px 15px; border-bottom: 1px solid var(--main-color); display: flex; justify-content: space-between; align-items: center; background: #080808; color: var(--main-color); font-weight: bold; }
+        
+        .editor-controls { 
+            padding: 12px 15px; 
+            border-bottom: 1px solid var(--main-color); 
+            display: flex; 
+            gap: 15px; 
+            align-items: flex-end; 
+            flex-wrap: wrap; 
+            background: #050505; 
+        }
+
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        .control-group label { font-size: 9px; color: #444; text-transform: uppercase; letter-spacing: 0.5px;}
+        .control-group input, .control-group select { 
+            background: #111; 
+            border: 1px solid #333; 
+            color: var(--main-color); 
+            padding: 2px 6px; 
+            font-family: inherit; 
+            font-size: 11px;
+            height: 24px;
+            outline: none;
+        }
+        
+        #ed-base, #ed-parts, #ed-edo-steps { width: 60px !important; text-align: center; }
+        #ed-mode, #ed-view-mode, #ed-vol { min-width: 90px; }
+
+        .control-group button { 
+            border: none; 
+            padding: 0 15px; 
+            height: 24px; 
+            background: var(--btn-gray); 
+            color: #000; 
+            cursor: pointer; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            font-size: 10px;
+        }
+
+        .editor-grid { flex: 1; overflow-y: auto; padding: 15px; display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 8px; align-content: start; }
+        .voice-cell { border: 1px solid #1a1a1a; background: #080808; position: relative; display: flex; flex-direction: column; height: 115px; }
+        .voice-cell.playing { border-color: var(--accent-color); background: rgba(46, 154, 254, 0.1); }
+        
+        .vc-idx { position: absolute; top: 4px; left: 6px; font-size: 10px; color: #444; font-weight: bold; }
+        .vc-top-right { position: absolute; top: 4px; right: 4px; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+        .vc-ratio { font-size: 9px; color: var(--accent-color); font-family: monospace; font-weight: bold; }
+        .vc-delta { font-size: 8px; color: #666; font-family: monospace; }
+        .vc-simp-btn { background: var(--btn-gray); border: 1px solid #444; color: #000; font-size: 11px; cursor: pointer; padding: 0 4px; border-radius: 2px; font-weight: bold; }
+        
+        .vc-freq-input { margin-top: 26px; width: 100%; background: transparent; border: none; color: var(--main-color); text-align: center; font-size: 14px; font-weight: bold; border-bottom: 1px dotted #333; }
+        .vc-cents-label { text-align: center; font-size: 9px; color: var(--accent-color); margin-top: 4px; }
+        .vc-realtime-hz { text-align: center; font-size: 9px; color: #555; margin-top: 2px; }
+
+        .vc-vol-slider { -webkit-appearance: none; width: 100%; height: 12px; background: #111; position: absolute; bottom: 0; left: 0; border-top: 1px solid #333; }
+        .vc-vol-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 40px; height: 12px; background: #555; }
+
+        header { padding: 8px 10px; border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; background: var(--bg-color); }
+        .logo { font-family: var(--logo-font); color: var(--accent-color); font-size: 20px; animation: breathe 4s infinite ease-in-out; }
+        .toolbar { display: flex; gap: 8px; }
+        button.tool-btn { background: transparent; color: var(--main-color); border: none; font-family: var(--font-stack); padding: 2px 4px; cursor: pointer; text-transform: uppercase; font-size: 12px; }
+
+        #workspace { flex: 1; position: relative; overflow: hidden; cursor: crosshair; }
+        .node { position: absolute; background: #000; border: 1px solid #2a2a2a; min-width: 130px; display: flex; flex-direction: column; z-index: 10; }
+        .node-header { padding: 4px 6px; cursor: grab; display: flex; justify-content: space-between; border-bottom: 1px solid #2a2a2a; font-size: 11px; text-transform: uppercase; color: var(--main-color); }
+        .node-body { padding: 6px; display: flex; flex-direction: column; gap: 5px; }
+
+        .param-row { display: flex; justify-content: space-between; align-items: center; font-size: 10px; color: #444; }
+        .param-row span { color: var(--main-color); }
+
+        input[type="range"].node-slider { -webkit-appearance: none; background: transparent; width: 60px; }
+        input[type="range"].node-slider::-webkit-slider-thumb { -webkit-appearance: none; height: 10px; width: 4px; background: #555; cursor: pointer; margin-top: -4px; }
+        input[type="range"].node-slider::-webkit-slider-runnable-track { height: 1px; background: #333; }
+
+        .node-micro { width: 260px; }
+        .micro-vis { 
+            height: 50px; width: 100%; display: flex; align-items: flex-end; gap: 1px; 
+            margin-bottom: 4px; border-bottom: 1px solid #222; background: #080808; 
+            cursor: crosshair; position: relative; 
+            touch-action: none; 
+            pointer-events: auto; 
+        }
+        .micro-bar { flex: 1; background: #2a2a2a; min-height: 1px; transition: height 0.05s; pointer-events: none; }
+        .micro-bar.playing { background: var(--accent-color) !important; box-shadow: 0 0 10px var(--accent-color); }
+        
+        .micro-info { 
+            font-family: monospace; font-size: 10px; color: var(--accent-color); 
+            background: #0e0e0e; padding: 6px; border: 1px solid #222; 
+            height: 105px; 
+            overflow-y: auto; 
+            white-space: pre-wrap; 
+            line-height: 1.3; 
+            scrollbar-width: thin;
+        }
+        
+        .edit-btn-large { width: 100%; padding: 6px; margin-top: 5px; background: var(--btn-gray); border: 1px solid #333; color: #000; cursor: pointer; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+
+        .port-container { display: flex; justify-content: space-between; margin-top: 4px; }
+        .port-wrapper { display: flex; flex-direction: column; align-items: center; margin: 0 2px; }
+        .port { width: 10px; height: 10px; background: #000; border: 1px solid #333; cursor: pointer; transition: background 0.1s; }
+        .port:hover { background: var(--accent-color); }
+        .port.snapped { background: #fff; box-shadow: 0 0 5px #fff; border-color: #fff; }
+        .port-label { font-size: 8px; color: #555; margin-bottom: 2px; }
+        
+        #cable-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        
+        /* --- 线缆系统样式 --- */
+        g.cable-group { cursor: pointer; pointer-events: stroke; }
+        path.cable-hit { fill: none; stroke: transparent; stroke-width: 15; opacity: 0; }
+        path.cable-visual { fill: none; stroke: var(--accent-color); stroke-width: 1.5; opacity: 0.7; transition: stroke 0.1s, stroke-width 0.1s; pointer-events: none; }
+        
+        /* 选中状态：高亮实线 */
+        g.cable-group.selected path.cable-visual { 
+            stroke: #fff; 
+            stroke-width: 2.5; 
+            filter: drop-shadow(0 0 5px #fff); 
+            opacity: 1; 
+            stroke-dasharray: none; /* 强制为实线 */
+        }
+        
+        /* 折叠状态：改用实线，稍微调低不透明度以作区分 */
+        g.cable-group.folded path.cable-visual { 
+            stroke-dasharray: none; /* 修复点：不再使用虚线 */
+            opacity: 0.5; 
+        }
+
+        /* 拖拽时的参考线 */
+        path.cable-drag { stroke: #fff; stroke-dasharray: 4 4; opacity: 0.8; }
+
+        #bottom-panel { height: 120px; border-top: 1px solid #222; display: flex; background: #000; }
+        #ascii-canvas { flex: 1; font-size: 8px; line-height: 8px; white-space: pre; display: flex; align-items: center; justify-content: center; color: #333; }
+        #log-section { flex: 1; padding: 5px; font-size: 10px; overflow-y: auto; display: flex; flex-direction: column-reverse; color: #555; border-left: 1px solid #111; }
+        .toggle-switch { width: 100%; text-align: center; border: 1px solid #333; color: #666; font-size: 9px; cursor: pointer; padding: 2px 0; margin-bottom: 4px; }
+        .toggle-switch.on { border-color: var(--accent-color); color: var(--accent-color); }
+    </style>
+</head>
+<body>
+
+    <div id="overlay">
+        <button id="start-btn-big" onclick="startSystem()">[ SYSTEM START ]</button>
+    </div>
+
+    <div id="editor-overlay">
+        <div class="editor-container">
+            <div class="editor-top-bar">
+                <span>[ MICRO-40 MATRIX ]</span>
+                <span style="cursor:pointer; color: #666;" onclick="closeMicroEditor()">[ ESC ]</span>
+            </div>
+            
+            <div class="editor-controls">
+                <div class="control-group"><label>ACTIVE</label><input type="number" id="ed-parts" min="1" max="40" value="12"></div>
+                <div class="control-group"><label>BASE FREQ</label><input type="number" id="ed-base" value="220"></div>
+                <div class="control-group">
+                    <label>ALGORITHM</label>
+                    <select id="ed-mode" onchange="toggleEdoInput()">
+                        <option value="harm">HARMONIC SERIES</option>
+                        <option value="edo">CUSTOM EDO</option>
+                        <option value="custom">CUSTOM / MANUAL</option>
+                    </select>
+                </div>
+                <div class="control-group" id="edo-input-group" style="display:none;">
+                    <label>EDO STEPS</label>
+                    <input type="number" id="ed-edo-steps" value="12" min="1">
+                </div>
+                <div class="control-group">
+                    <label>VIEW</label>
+                    <select id="ed-view-mode" onchange="renderEditorGrid()">
+                        <option value="ratio">RATIO</option>
+                        <option value="hz">HZ</option>
+                        <option value="cents">CENTS</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>DECAY</label>
+                    <select id="ed-vol">
+                        <option value="nature">NATURAL (1/n)</option>
+                        <option value="linear">LINEAR</option>
+                        <option value="flat">FLAT (CONST)</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <button onclick="applyMicroGenerator()">APPLY TO ALL</button>
+                </div>
+            </div>
+
+            <div class="editor-grid" id="ed-grid"></div>
+        </div>
+    </div>
+
+    <header>
+        <div class="logo">MICROBOX</div>
+        <div class="toolbar">
+            <button class="tool-btn" onclick="addNode('micro')">[MICRO-40]</button>
+            <button class="tool-btn" onclick="addNode('osc')">[OSC]</button>
+            <button class="tool-btn" onclick="addNode('lfo')">[LFO]</button>
+            <button class="tool-btn" onclick="addNode('rnd')">[RND]</button>
+            <span style="color:#222">|</span>
+            <button class="tool-btn" onclick="addNode('filter')">[FILT]</button>
+            <button class="tool-btn" onclick="addNode('delay')">[DLY]</button>
+            <button class="tool-btn" onclick="addNode('gain')">[AMP]</button>
+            <span style="color:#222">|</span>
+            <button class="tool-btn" onclick="addNode('seq')">[SEQ]</button>
+            <button class="tool-btn" onclick="addNode('out')">[OUT]</button>
+            <button class="tool-btn" onclick="clearWorkspace()" style="color:#555">[CLR]</button>
+        </div>
+        <div style="font-size: 10px; color: #222">CPU: <span id="cpu-status" style="color:var(--accent-color)">IDLE</span></div>
+    </header>
+
+    <div id="workspace"><svg id="cable-layer"></svg></div>
+
+    <div id="bottom-panel">
+        <div id="ascii-canvas">...</div>
+        <div id="log-section"></div>
+    </div>
+
+    <script>
+        let ctx, masterGain, analyser, nodes = [], cables = [], nextNodeId = 1, isSystemReady = false;
+        let draggingNode = null, dragOffset = {x:0, y:0}, draggingCable = null;
+        let drawState = { active: false, nodeId: null, lastIdx: null, lastVol: null };
+        let selectedCableObj = null, currentEditNodeId = null, snapTargetId = null;
+        const KEY_MAP = "1234567890qwertyuiopasdfghjklzxcvbnm,./";
+        const SNAP_DIST = 20;
+
+        const JI_SCALE = [0, 111.7, 203.9, 315.6, 386.3, 498.0, 582.5, 702.0, 813.7, 884.4, 1017.6, 1088.3];
+        const PYTH_SCALE = [0, 113.7, 203.9, 317.6, 407.8, 498.0, 611.7, 702.0, 815.6, 905.9, 1019.6, 1109.8];
+        const MEAN_SCALE = [0, 76.0, 193.2, 310.3, 386.3, 503.4, 579.5, 696.6, 772.6, 889.7, 1006.8, 1082.9];
+
+        function sysLog(msg) {
+            const el = document.createElement('div'); el.innerText = "> " + msg;
+            const log = document.getElementById('log-section'); log.prepend(el);
+            if(log.children.length > 20) log.lastChild.remove();
+        }
+
+        function startSystem() {
+            ctx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = ctx.createGain(); masterGain.gain.value = 0.5;
+            analyser = ctx.createAnalyser(); analyser.fftSize = 128;
+            masterGain.connect(analyser); analyser.connect(ctx.destination);
+            isSystemReady = true;
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('cpu-status').innerText = "ONLINE";
+            startVisualizer();
+            window.addEventListener('keydown', handleGlobalKey);
+            window.addEventListener('keyup', e => handleKey(e, false));
+            window.addEventListener('pointermove', handlePointerGlobal);
+            window.addEventListener('pointerup', endPointerGlobal);
+            window.addEventListener('pointercancel', endPointerGlobal);
+            document.getElementById('workspace').addEventListener('click', (e) => {
+                if (e.target.id === 'workspace' || e.target.id === 'cable-layer') deselectCable();
+            });
+        }
+
+        function handleGlobalKey(e) {
+            if(!isSystemReady) return;
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (selectedCableObj) { deleteSelectedCable(); return; }
+            }
+            if(e.target.tagName === 'INPUT' || e.repeat) return;
+            const idx = KEY_MAP.indexOf(e.key.toLowerCase());
+            if(idx !== -1) triggerMicroVoice(idx, true);
+        }
+
+        function handleKey(e, isDown) {
+            if(!isSystemReady || e.target.tagName === 'INPUT' || e.repeat) return;
+            const idx = KEY_MAP.indexOf(e.key.toLowerCase());
+            if(idx !== -1) triggerMicroVoice(idx, isDown);
+        }
+
+        function updateMicroUI(id) {
+            const n = nodes.find(x => x.id === id);
+            if (!n) return;
+            const active = Array.from(n.audio.activeNotes).sort((a,b)=>a-b);
+            const base = n.audio.state.baseFreq;
+            const infoEl = document.getElementById(`minfo-${id}`);
+            if(infoEl) {
+                infoEl.innerText = active.length ? active.map(i => {
+                    const d = n.audio.voiceData[i];
+                    const ct = (1200 * Math.log2(d.freq/base)).toFixed(1);
+                    return `#${(i+1).toString().padStart(2,'0')} | ${d.freq.toFixed(1).padStart(7,' ')}Hz | ${ct.padStart(6,' ')}ct`;
+                }).join('\n') : "READY";
+            }
+            n.audio.voiceData.forEach((_,i) => {
+                const bar = document.getElementById(`mbar-${id}-${i}`);
+                if(bar) bar.classList.toggle('playing', n.audio.activeNotes.has(i));
+                const cell = document.getElementById(`vc-cell-${i}`);
+                if(cell) cell.classList.toggle('playing', n.audio.activeNotes.has(i));
+            });
+        }
+
+        function triggerMicroVoice(idx, isDown) {
+            nodes.forEach(n => {
+                if(n.type === 'micro' && n.audio.state.playMode === 'play') {
+                    if(idx < n.audio.state.parts) {
+                        const v = n.audio.voices[idx];
+                        const d = n.audio.voiceData[idx];
+                        v.gain.gain.setTargetAtTime(isDown ? d.gain : 0, ctx.currentTime, 0.02);
+                        if(isDown) n.audio.activeNotes.add(idx); else n.audio.activeNotes.delete(idx);
+                        updateMicroUI(n.id);
+                    }
+                }
+            });
+        }
+
+        function getRatioString(freq, base) {
+            if(base === 0) return "0:0";
+            const ratio = freq / base;
+            for(let d=1; d<=64; d++) {
+                let n = Math.round(ratio * d);
+                if(Math.abs(ratio - n/d) < 0.001) return `${n}:${d}`;
+            }
+            return ratio.toFixed(3);
+        }
+
+        function getTemperamentDelta(cents) {
+            const normCents = ((cents % 1200) + 1200) % 1200;
+            const findNearest = (val, scale) => {
+                let min = 1200;
+                scale.forEach(s => {
+                    let d = val - s;
+                    if (Math.abs(d) < Math.abs(min)) min = d;
+                });
+                return min;
+            };
+            return `P:${findNearest(normCents, PYTH_SCALE).toFixed(1)} J:${findNearest(normCents, JI_SCALE).toFixed(1)} M:${findNearest(normCents, MEAN_SCALE).toFixed(1)}`;
+        }
+
+        const nodeDefs = {
+            'micro': {
+                title: 'MICRO-40', inputs: ['v_oct'], outputs: ['audio'],
+                create: () => {
+                    const bus = ctx.createGain();
+                    const limiter = ctx.createDynamicsCompressor();
+                    limiter.threshold.setValueAtTime(-3, ctx.currentTime);
+                    limiter.ratio.setValueAtTime(20, ctx.currentTime);
+                    const voices = [], voiceData = [];
+                    for(let i=0; i<40; i++) {
+                        const osc = ctx.createOscillator(); const g = ctx.createGain(); g.gain.value = 0;
+                        osc.connect(g); g.connect(bus); osc.start();
+                        voices.push({ osc, gain: g });
+                        voiceData.push({ freq: 220, gain: 0.5, ratioStr: null });
+                    }
+                    bus.connect(limiter);
+                    return { source: limiter, voices, voiceData, state: { parts: 12, baseFreq: 220, tuneMode: 'harm', playMode: 'play', edoSteps: 12, volMode: 'nature' }, activeNotes: new Set() };
+                }
+            },
+            'osc': { title: 'OSC', inputs: ['freq'], outputs: ['audio'], params: [{name:'freq', type:'range', min:20, max:1000, val:220}, {name:'type', type:'select', options:['sawtooth','square','sine', 'triangle']}], create: () => { const osc = ctx.createOscillator(); osc.start(); return { source: osc, inputs: {freq: osc.frequency} }; } },
+            'lfo': { title: 'LFO', inputs: ['freq'], outputs: ['cv'], params: [{name:'freq', type:'range', min:0.1, max:20, step:0.1, val:2}, {name:'type', type:'select', options:['sine', 'triangle', 'square']}], create: () => { const osc = ctx.createOscillator(); const g = ctx.createGain(); g.gain.value = 100; osc.connect(g); osc.start(); return { source: g, inputs: {freq: osc.frequency}, internal: osc }; } },
+            'rnd': { title: 'RND', inputs: ['speed', 'scale'], outputs: ['cv'], params: [{name:'speed', type:'range', min:50, max:1000, val:200}, {name:'scale', type:'range', min:100, max:2000, val:500}], create: () => { const src = ctx.createConstantSource(); src.start(); let nodeRef = { source: src, inputs: { speed: src.offset }, scaleVal: 500, domId: null }; let timer = null; const tick = () => { const val = Math.random() * nodeRef.scaleVal; src.offset.setTargetAtTime(val, ctx.currentTime, 0.05); const el = document.getElementById(nodeRef.domId); if(el) { const ind = el.querySelector('.rnd-indicator'); if(ind) ind.innerText = Math.floor(val).toString().padStart(4, '0'); } }; nodeRef.setSpeed = (ms) => { if(timer) clearInterval(timer); timer = setInterval(tick, ms); }; nodeRef.setSpeed(200); nodeRef.cleanup = () => clearInterval(timer); return nodeRef; } },
+            'filter': { title: 'FILTER', inputs: ['in', 'freq', 'q'], outputs: ['audio'], params: [{name:'freq', type:'range', min:20, max:5000, val:1000}, {name:'q', type:'range', min:0, max:20, val:1}], create: () => { const f = ctx.createBiquadFilter(); return { source: f, inputs: {in:f, freq:f.frequency, q: f.Q} }; } },
+            'delay': { title: 'DELAY', inputs: ['in', 'time', 'fb'], outputs: ['audio'], params: [{name:'time', type:'range', min:0, max:1, step:0.01, val:0.3}, {name:'fb', type:'range', min:0, max:0.9, step:0.01, val:0.4}], create: () => { const d = ctx.createDelay(); const fb = ctx.createGain(); d.connect(fb); fb.connect(d); return { source: d, inputs: {in:d, time:d.delayTime, fb: fb.gain} }; } },
+            'gain': { title: 'AMP', inputs: ['in', 'gain'], outputs: ['audio'], params: [{name:'gain', type:'range', min:0, max:1, step:0.01, val:0.5}], create: () => { const g = ctx.createGain(); return { source: g, inputs: {in:g, gain:g.gain} }; } },
+            'seq': { title: 'SEQ', inputs: ['speed'], outputs: ['cv'], params: [{name:'speed', type:'range', min:50, max:1000, val:200}], create: () => { const out = ctx.createConstantSource(); out.start(); let step = 0; const vals = Array(8).fill(220); let nodeRef = { source: out, inputs: {}, vals, domId: null }; let timer = null; const tick = () => { out.offset.setTargetAtTime(vals[step], ctx.currentTime, 0.02); const el = document.getElementById(nodeRef.domId); if(el) el.querySelectorAll('.seq-step').forEach((s,i) => s.classList.toggle('active', i===step)); step = (step + 1) % 8; }; nodeRef.setSpeed = (ms) => { if(timer) clearInterval(timer); timer = setInterval(tick, ms); }; nodeRef.setSpeed(200); nodeRef.cleanup = () => clearInterval(timer); return nodeRef; } },
+            'out': { title: 'OUT', inputs: ['in'], outputs: [], create: () => { const g = ctx.createGain(); g.connect(masterGain); return { source: g, inputs: {in:g}, muted: false, isOut: true }; } }
+        };
+
+        function addNode(type, x=100, y=100) {
+            const id = `node_${nextNodeId++}`, def = nodeDefs[type], audio = def.create();
+            audio.domId = id;
+            const node = { id, type, audio, x, y, inputs: audio.inputs || {}, outputs: { audio: audio.source, cv: audio.source } };
+            nodes.push(node);
+            const el = document.createElement('div'); el.className = `node ${type==='micro'?'node-micro':''}`; el.id = id;
+            el.style.left = x+'px'; el.style.top = y+'px';
+            let html = `<div class="node-header" onmousedown="startDragNode(event,'${id}')"><span>${def.title}</span><span style="cursor:pointer" onclick="removeNode('${id}')">X</span></div><div class="node-body">`;
+            if(type === 'micro') {
+                html += `<div class="micro-info" id="minfo-${id}">READY</div><div class="micro-vis" id="mvis-${id}" onpointerdown="startMicroDraw(event,'${id}')"></div><div class="toggle-switch on" id="toggle-${id}" onclick="toggleMicroMode('${id}')">MODE: PLAY (KEYS)</div><button class="edit-btn-large" onclick="openMicroEditor('${id}')">EDIT MATRIX</button>`;
+            } else if (type === 'out') {
+                html += `<div class="toggle-switch on" onclick="toggleOutNode('${id}')">ENGINE: ON</div>`;
+            } else if (type === 'rnd') {
+                html += `<div class="param-row"><span>VAL:</span><span class="rnd-indicator">0000</span></div>`;
+            } else if (type === 'seq') {
+                html += `<div class="seq-steps">${Array(8).fill(0).map((_,i)=>`<div class="seq-step"><div class="seq-val-bar" style="height:50%"></div><input class="seq-slider" type="range" min="50" max="1000" oninput="updateSeq('${id}',${i},this.value, this)"></div>`).join('')}</div>`;
+            }
+            if (def.params) html += def.params.map(p => `<div class="param-row"><span>${p.name.toUpperCase()}</span>${p.type==='range' ? `<input type="range" class="node-slider" min="${p.min}" max="${p.max}" step="${p.step||1}" value="${p.val}" oninput="updateParam('${id}','${p.name}',this.value)">` : `<select class="node-select" onchange="updateParam('${id}','${p.name}',this.value)">${p.options.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`}</div>`).join('');
+            html += `<div class="port-container"><div>${def.inputs.map(i=>`<div class="port-wrapper"><div class="port-label">${i}</div><div class="port" id="${id}_in_${i}" onmouseup="dropCable(event,'${id}_in_${i}')"></div></div>`).join('')}</div><div style="text-align:right">${def.outputs.map(o=>`<div class="port-wrapper"><div class="port-label">${o}</div><div class="port" id="${id}_out_${o}" onmousedown="startCable(event,'${id}_out_${o}')"></div></div>`).join('')}</div></div></div>`;
+            el.innerHTML = html;
+            document.getElementById('workspace').appendChild(el);
+            if(type==='micro') updateMicroGenerator(id);
+            return node;
+        }
+
+        function startMicroDraw(e, id) { e.preventDefault(); e.stopPropagation(); const vis = e.currentTarget; vis.setPointerCapture(e.pointerId); drawState = { active: true, nodeId: id, lastIdx: null, lastVol: null }; updateDrawFromPointer(e); }
+        function handlePointerGlobal(e) { if(drawState.active) updateDrawFromPointer(e); }
+        function endPointerGlobal(e) { drawState.active = false; drawState.lastIdx = null; drawState.lastVol = null; }
+        function updateDrawFromPointer(e) {
+            const node = nodes.find(x => x.id === drawState.nodeId);
+            const vis = document.getElementById(`mvis-${drawState.nodeId}`);
+            if(!node || !vis) return;
+            const rect = vis.getBoundingClientRect();
+            const rawX = (e.clientX - rect.left) / rect.width;
+            const rawY = (e.clientY - rect.top) / rect.height;
+            const normX = Math.max(0, Math.min(0.999, rawX));
+            const normY = Math.max(0, Math.min(1, rawY));
+            const currentIdx = Math.floor(normX * node.audio.state.parts);
+            const currentVol = Math.max(0, Math.min(1, 1 - normY));
+            if(currentIdx >= 0 && currentIdx < node.audio.state.parts) {
+                if (drawState.lastIdx !== null && Math.abs(drawState.lastIdx - currentIdx) > 1) {
+                    const startIdx = Math.min(drawState.lastIdx, currentIdx);
+                    const endIdx = Math.max(drawState.lastIdx, currentIdx);
+                    const steps = endIdx - startIdx;
+                    for (let i = 0; i <= steps; i++) {
+                        const targetIdx = startIdx + i;
+                        const t = i / steps;
+                        const lerpVol = drawState.lastIdx < currentIdx ? (1-t)*drawState.lastVol + t*currentVol : t*drawState.lastVol + (1-t)*currentVol;
+                        setPartialGain(node, targetIdx, lerpVol);
+                    }
+                } else {
+                    setPartialGain(node, currentIdx, currentVol);
+                }
+                drawState.lastIdx = currentIdx;
+                drawState.lastVol = currentVol;
+            }
+        }
+        function setPartialGain(node, idx, vol) {
+            node.audio.voiceData[idx].gain = vol;
+            if(node.audio.state.playMode === 'drone') node.audio.voices[idx].gain.gain.setTargetAtTime(vol, ctx.currentTime, 0.012);
+            const bar = document.getElementById(`mbar-${node.id}-${idx}`);
+            if(bar) bar.style.height = (vol * 100) + "%";
+        }
+
+        // --- 核心改动：Manhattan 路由与实线显示 ---
+        function getCablePath(x1, y1, x2, y2, folded) {
+            if (folded) {
+                const midX = x1 + (x2 - x1) / 2;
+                return `M ${x1} ${y1} L ${midX} ${y1} L ${midX} ${y2} L ${x2} ${y2}`;
+            }
+            return `M ${x1} ${y1} L ${x2} ${y2}`;
+        }
+
+        function startCable(e, id) { 
+            e.stopPropagation(); 
+            draggingCable = { fromId: id, startX: 0, startY: 0, elGroup: document.createElementNS('http://www.w3.org/2000/svg', 'g') };
+            draggingCable.elGroup.setAttribute('class', 'cable-group');
+            const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            hitPath.setAttribute('class', 'cable-hit');
+            const visualPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            visualPath.setAttribute('class', 'cable-visual cable-drag');
+            draggingCable.elGroup.appendChild(hitPath);
+            draggingCable.elGroup.appendChild(visualPath);
+            document.getElementById('cable-layer').appendChild(draggingCable.elGroup);
+            const pr = document.getElementById(id).getBoundingClientRect();
+            const wr = document.getElementById('workspace').getBoundingClientRect();
+            draggingCable.startX = pr.left + 5 - wr.left;
+            draggingCable.startY = pr.top + 5 - wr.top;
+            const move = e => { 
+                const wr = document.getElementById('workspace').getBoundingClientRect();
+                const mouseX = e.clientX - wr.left, mouseY = e.clientY - wr.top;
+                snapTargetId = null;
+                const ports = document.querySelectorAll('.port');
+                let targetX = mouseX, targetY = mouseY;
+                ports.forEach(p => {
+                    if(p.id.includes('_in_')) {
+                        const r = p.getBoundingClientRect();
+                        const px = r.left + 5 - wr.left, py = r.top + 5 - wr.top;
+                        const dist = Math.hypot(mouseX - px, mouseY - py);
+                        if(dist < SNAP_DIST) { targetX = px; targetY = py; snapTargetId = p.id; p.classList.add('snapped'); }
+                        else p.classList.remove('snapped');
+                    }
+                });
+                const d = getCablePath(draggingCable.startX, draggingCable.startY, targetX, targetY, false);
+                visualPath.setAttribute('d', d); hitPath.setAttribute('d', d);
+            }; 
+            const stop = () => { if(draggingCable) draggingCable.elGroup.remove(); document.querySelectorAll('.port.snapped').forEach(p => p.classList.remove('snapped')); draggingCable = null; window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', stop); }; 
+            window.addEventListener('mousemove', move); window.addEventListener('mouseup', stop); 
+        }
+        
+        function dropCable(e, inId) {
+            const finalInId = snapTargetId || inId;
+            if(!draggingCable) return;
+            const outId = draggingCable.fromId, n1Id = outId.split('_').slice(0,2).join('_'), n2Id = finalInId.split('_').slice(0,2).join('_');
+            const n1 = nodes.find(x => x.id === n1Id), n2 = nodes.find(x => x.id === n2Id);
+            if(!n1 || !n2) return;
+            const src = n1.outputs[outId.split('_').pop()], dest = n2.inputs[finalInId.split('_').pop()], isMicroMod = (n2.type === 'micro' && finalInId.includes('v_oct'));
+            if(isMicroMod) n2.audio.voices.forEach(v => src.connect(v.osc.detune)); else if (dest) src.connect(dest);
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            group.setAttribute('class', 'cable-group');
+            const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path'); hitPath.setAttribute('class', 'cable-hit');
+            const visualPath = document.createElementNS('http://www.w3.org/2000/svg', 'path'); visualPath.setAttribute('class', 'cable-visual');
+            group.appendChild(hitPath); group.appendChild(visualPath);
+            document.getElementById('cable-layer').appendChild(group);
+            const cableData = { from: outId, to: finalInId, elGroup: group, hitPath: hitPath, visualPath: visualPath, srcNode: src, destNode: dest, isMicroMod: isMicroMod, targetMicro: n2, folded: false };
+            group.onclick = (ev) => selectCable(ev, cableData);
+            group.ondblclick = (ev) => toggleFoldCable(ev, cableData);
+            cables.push(cableData);
+            if(draggingCable && draggingCable.elGroup) draggingCable.elGroup.remove();
+            draggingCable = null; document.querySelectorAll('.port.snapped').forEach(p => p.classList.remove('snapped'));
+            updateCables(); sysLog(`connected ${n1.type} -> ${n2.type}`);
+        }
+
+        function selectCable(e, cable) { e.stopPropagation(); deselectCable(); selectedCableObj = cable; cable.elGroup.classList.add('selected'); cable.elGroup.parentElement.appendChild(cable.elGroup); }
+        function deselectCable() { if (selectedCableObj) { selectedCableObj.elGroup.classList.remove('selected'); selectedCableObj = null; } }
+        function toggleFoldCable(e, cable) { e.stopPropagation(); cable.folded = !cable.folded; cable.elGroup.classList.toggle('folded', cable.folded); updateCables(); }
+        function deleteSelectedCable() { if (!selectedCableObj) return; const c = selectedCableObj; try { if(c.isMicroMod) { c.targetMicro.audio.voices.forEach(v => { try { c.srcNode.disconnect(v.osc.detune); } catch(err){} }); } else { try { c.srcNode.disconnect(c.destNode); } catch(err){} } } catch(e) { console.log("Disconnect error:", e); } c.elGroup.remove(); cables = cables.filter(item => item !== c); selectedCableObj = null; sysLog("cable deleted"); }
+
+        function updateCables() { 
+            const wr = document.getElementById('workspace').getBoundingClientRect(); 
+            cables.forEach(c => { 
+                const p1 = document.getElementById(c.from).getBoundingClientRect(), p2 = document.getElementById(c.to).getBoundingClientRect(); 
+                const x1 = p1.left + 5 - wr.left, y1 = p1.top + 5 - wr.top, x2 = p2.left + 5 - wr.left, y2 = p2.top + 5 - wr.top;
+                const d = getCablePath(x1, y1, x2, y2, c.folded);
+                c.visualPath.setAttribute('d', d); c.hitPath.setAttribute('d', d);
+            }); 
+        }
+        
+        function renderEditorGrid() { const n = nodes.find(x => x.id === currentEditNodeId); const grid = document.getElementById('ed-grid'); grid.innerHTML = ''; const viewMode = document.getElementById('ed-view-mode').value; const baseFreq = n.audio.state.baseFreq; n.audio.voiceData.forEach((d,i) => { if(i >= n.audio.state.parts) return; const cell = document.createElement('div'); cell.className = 'voice-cell' + (n.audio.activeNotes.has(i)?' playing':''); cell.id = `vc-cell-${i}`; const cents = (1200 * Math.log2(d.freq/baseFreq)).toFixed(1); let displayVal = viewMode === 'hz' ? d.freq.toFixed(2) : (viewMode === 'ratio' ? d.ratioStr || getRatioString(d.freq, baseFreq) : cents); cell.innerHTML = `<span class="vc-idx">#${i+1}</span><div class="vc-top-right">${n.audio.state.tuneMode === 'edo' ? `<div class="vc-delta">${getTemperamentDelta(cents)}</div>` : `<div class="vc-ratio-box"><span class="vc-ratio">${d.ratioStr || getRatioString(d.freq, baseFreq)}</span><button class="vc-simp-btn" onclick="simplifyRatio(${i})">~</button></div>`}</div><input class="vc-freq-input" value="${displayVal}" onchange="manualEdit(${i},'f',this.value)"><div class="vc-cents-label">${cents >= 0 ? '+' : ''}${cents} ct</div><div class="vc-realtime-hz">${d.freq.toFixed(2)} Hz</div><input class="vc-vol-slider" type="range" min="0" max="1" step="0.01" value="${d.gain}" oninput="manualEdit(${i},'g',this.value)">`; grid.appendChild(cell); }); }
+        function toggleEdoInput() { const mode = document.getElementById('ed-mode').value; document.getElementById('edo-input-group').style.display = (mode === 'edo') ? 'flex' : 'none'; }
+        function updateMicroGenerator(id) { const n = nodes.find(x => x.id === id), s = n.audio.state, now = ctx.currentTime; const vis = document.getElementById(`mvis-${id}`); if (vis) { vis.innerHTML = Array(s.parts).fill(0).map((_, i) => `<div class="micro-bar" id="mbar-${id}-${i}"></div>`).join(''); } for(let i=0; i<40; i++) { const v = n.audio.voices[i], d = n.audio.voiceData[i]; if(i < s.parts) { if(s.tuneMode === 'harm') d.freq = s.baseFreq * (i+1); else if(s.tuneMode === 'edo') d.freq = s.baseFreq * Math.pow(2, i/s.edoSteps); if(s.tuneMode !== 'custom') { if(s.volMode === 'nature') d.gain = 1/(i+1); else if(s.volMode === 'linear') d.gain = 1 - (i/s.parts); } v.osc.frequency.setTargetAtTime(d.freq, now, 0.02); if(s.playMode === 'drone') v.gain.gain.setTargetAtTime(d.gain, now, 0.05); const bar = document.getElementById(`mbar-${id}-${i}`); if(bar) bar.style.height = (d.gain*100)+'%'; } else { v.gain.gain.setTargetAtTime(0, now, 0.05); } } updateMicroUI(id); }
+        function toggleMicroMode(id) { const n = nodes.find(x => x.id === id); n.audio.state.playMode = n.audio.state.playMode==='play'?'drone':'play'; const btn = document.getElementById(`toggle-${id}`); btn.innerText = `MODE: ${n.audio.state.playMode.toUpperCase()}${n.audio.state.playMode==='play'?' (KEYS)':''}`; btn.classList.toggle('on', n.audio.state.playMode==='play'); updateMicroGenerator(id); }
+        function openMicroEditor(id) { currentEditNodeId = id; const n = nodes.find(x => x.id === id); document.getElementById('ed-parts').value = n.audio.state.parts; document.getElementById('ed-base').value = n.audio.state.baseFreq; document.getElementById('ed-mode').value = n.audio.state.tuneMode; document.getElementById('ed-edo-steps').value = n.audio.state.edoSteps || 12; document.getElementById('ed-vol').value = n.audio.state.volMode; toggleEdoInput(); renderEditorGrid(); document.getElementById('editor-overlay').classList.add('active'); }
+        function closeMicroEditor() { document.getElementById('editor-overlay').classList.remove('active'); currentEditNodeId = null; }
+        function simplifyRatio(idx) { const n = nodes.find(x => x.id === currentEditNodeId); n.audio.voiceData[idx].ratioStr = getRatioString(n.audio.voiceData[idx].freq, n.audio.state.baseFreq); renderEditorGrid(); }
+        function manualEdit(idx, type, val) { const n = nodes.find(x => x.id === currentEditNodeId); const base = n.audio.state.baseFreq; if(type==='f') { const view = document.getElementById('ed-view-mode').value; if(view === 'hz') n.audio.voiceData[idx].freq = parseFloat(val); else if(view === 'ratio') { const p = val.includes(':') ? val.split(':') : val.split('/'); if(p.length === 2) { n.audio.voiceData[idx].freq = base * (parseFloat(p[0])/parseFloat(p[1])); n.audio.voiceData[idx].ratioStr = val; } else n.audio.voiceData[idx].freq = base * parseFloat(val); } else if (view === 'cents') n.audio.voiceData[idx].freq = base * Math.pow(2, parseFloat(val)/1200); n.audio.voices[idx].osc.frequency.setTargetAtTime(n.audio.voiceData[idx].freq, ctx.currentTime, 0.02); } else { n.audio.voiceData[idx].gain = parseFloat(val); if(n.audio.state.playMode === 'drone') n.audio.voices[idx].gain.gain.setTargetAtTime(n.audio.voiceData[idx].gain, ctx.currentTime, 0.02); const bar = document.getElementById(`mbar-${n.id}-${idx}`); if(bar) bar.style.height = (parseFloat(val)*100)+'%'; } renderEditorGrid(); }
+        function applyMicroGenerator() { const n = nodes.find(x => x.id === currentEditNodeId); n.audio.state.parts = parseInt(document.getElementById('ed-parts').value); n.audio.state.baseFreq = parseFloat(document.getElementById('ed-base').value); n.audio.state.tuneMode = document.getElementById('ed-mode').value; n.audio.state.edoSteps = parseInt(document.getElementById('ed-edo-steps').value); n.audio.state.volMode = document.getElementById('ed-vol').value; updateMicroGenerator(n.id); renderEditorGrid(); }
+        function toggleOutNode(id) { const n = nodes.find(x => x.id === id); n.audio.muted = !n.audio.muted; n.audio.source.gain.setTargetAtTime(n.audio.muted ? 0 : 1, ctx.currentTime, 0.05); const btn = document.getElementById(id).querySelector('.toggle-switch'); btn.innerText = n.audio.muted ? "ENGINE: OFF" : "ENGINE: ON"; btn.classList.toggle('on', !n.audio.muted); }
+        function updateSeq(id, idx, val, el) { const n = nodes.find(x => x.id === id); n.audio.vals[idx] = parseFloat(val); el.parentNode.querySelector('.seq-val-bar').style.height = (val/1000 * 100) + '%'; }
+        function updateParam(id, key, val) { const n = nodes.find(x => x.id === id); if(n.type === 'lfo' && key === 'type') n.audio.internal.type = val; if((n.type === 'seq' || n.type === 'rnd') && key === 'speed') n.audio.setSpeed(val); if(n.type === 'rnd' && key === 'scale') n.audio.scaleVal = parseFloat(val); const target = n.audio.inputs[key]; if(target instanceof AudioParam) target.setTargetAtTime(parseFloat(val), ctx.currentTime, 0.02); else if(target && target.gain) target.gain.setTargetAtTime(parseFloat(val), ctx.currentTime, 0.02); }
+        function startDragNode(e, id) { const n = nodes.find(x => x.id === id); draggingNode = id; dragOffset = { x: e.clientX - n.x, y: e.clientY - n.y }; const move = e => { n.x = e.clientX - dragOffset.x; n.y = e.clientY - dragOffset.y; document.getElementById(id).style.left = n.x+'px'; document.getElementById(id).style.top = n.y+'px'; updateCables(); }; const stop = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', stop); }; window.addEventListener('mousemove', move); window.addEventListener('mouseup', stop); }
+        function removeNode(id) { const n = nodes.find(x => x.id === id); if(n.audio.cleanup) n.audio.cleanup(); if(n.audio.voices) n.audio.voices.forEach(v => { try { v.osc.stop(); } catch(e){} }); document.getElementById(id).remove(); cables = cables.filter(c => { if(c.from.startsWith(id) || c.to.startsWith(id)) { c.elGroup.remove(); return false; } return true; }); nodes = nodes.filter(x => x.id !== id); }
+        function clearWorkspace() { [...nodes].forEach(n => removeNode(n.id)); cables = []; document.getElementById('cable-layer').innerHTML = ''; }
+        function startVisualizer() { const canvas = document.getElementById('ascii-canvas'), data = new Uint8Array(analyser.frequencyBinCount); const draw = () => { analyser.getByteFrequencyData(data); let str = ""; for(let i=0; i<60; i++) { const h = Math.floor(data[i]/255 * 8); str += " ▂▃▄▅▆▇█"[h] || " "; } canvas.innerText = str; requestAnimationFrame(draw); }; draw(); }
+    </script>
+</body>
+</html>
